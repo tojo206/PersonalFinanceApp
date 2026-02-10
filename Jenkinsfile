@@ -69,18 +69,21 @@ pipeline {
                         REM Copy frontend build output and assets
                         mkdir deploy-package\\frontend
                         xcopy /e /i /y frontend\\.next deploy-package\\frontend\\.next
+                        REM Remove trace file that causes permission issues
+                        if exist deploy-package\\frontend\\.next\\trace del /f /q deploy-package\\frontend\\.next\\trace
                         xcopy /e /i /y frontend\\public deploy-package\\frontend\\public
                         copy /y frontend\\package.json deploy-package\\frontend\\
-                        copy /y frontend\\next.config.js deploy-package\\frontend\\ 2^>nul
-                        copy /y frontend\\next.config.mjs deploy-package\\frontend\\ 2^>nul
+                        if exist frontend\\next.config.mjs copy /y frontend\\next.config.mjs deploy-package\\frontend\\
 
-                        REM Copy backend build output and runtime files
+                        REM Copy backend source files and runtime files (tsx runtime needs source)
                         mkdir deploy-package\\backend
-                        xcopy /e /i /y backend\\dist deploy-package\\backend\\dist
-                        xcopy /e /i /y backend\\node_modules deploy-package\\backend\\node_modules
+                        xcopy /e /i /y backend\\src deploy-package\\backend\\src
+                        xcopy /e /i /y backend\\lib deploy-package\\backend\\lib
+                        xcopy /e /i /y backend\\types deploy-package\\backend\\types
                         xcopy /e /i /y backend\\prisma deploy-package\\backend\\prisma
                         copy /y backend\\package.json deploy-package\\backend\\
-                        copy /y backend\\.env deploy-package\\backend\\ 2^>nul
+                        copy /y backend\\tsconfig.json deploy-package\\backend\\
+                        REM Skip .env file - should exist on server
 
                         echo Package created successfully!
                         dir /s deploy-package
@@ -164,33 +167,41 @@ pipeline {
                             }
 
                             # Upload frontend
+                            Write-Host "Uploading frontend files..."
                             Upload-Files "deploy-package/frontend" "$ftpDir/frontend"
 
-                            # Upload backend (skip node_modules - too large, will install on server)
+                            # Upload backend
                             Write-Host "Uploading backend files..."
-                            Create-FtpDirectory "$ftpDir/backend/dist"
-                            Create-FtpDirectory "$ftpDir/backend/prisma"
+                            Create-FtpDirectory "$ftpDir/backend/src"
                             Create-FtpDirectory "$ftpDir/backend/lib"
+                            Create-FtpDirectory "$ftpDir/backend/types"
+                            Create-FtpDirectory "$ftpDir/backend/prisma"
 
-                            # Upload dist folder
-                            Upload-Files "deploy-package/backend/dist" "$ftpDir/backend/dist"
-                            Upload-Files "deploy-package/backend/prisma" "$ftpDir/backend/prisma"
+                            # Upload source folders
+                            Upload-Files "deploy-package/backend/src" "$ftpDir/backend/src"
                             Upload-Files "deploy-package/backend/lib" "$ftpDir/backend/lib"
+                            Upload-Files "deploy-package/backend/types" "$ftpDir/backend/types"
+                            Upload-Files "deploy-package/backend/prisma" "$ftpDir/backend/prisma"
 
-                            # Upload root backend files
+                            # Upload root backend files (package.json, tsconfig.json)
                             $files = Get-ChildItem "deploy-package/backend" -File
                             foreach ($file in $files) {
                                 $uri = "ftp://$ftpHost$ftpDir/backend/" + $file.Name
                                 Write-Host "Uploading backend root:" $file.Name
-                                $request = [System.Net.FtpWebRequest]::Create($uri)
-                                $request.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
-                                $request.Credentials = New-Object System.Net.NetworkCredential($ftpUser, $ftpPass)
-                                $request.UseBinary = $true
-                                $content = [System.IO.File]::ReadAllBytes($file.FullName)
-                                $request.ContentLength = $content.Length
-                                $stream = $request.GetRequestStream()
-                                $stream.Write($content, 0, $content.Length)
-                                $stream.Close()
+                                try {
+                                    $request = [System.Net.FtpWebRequest]::Create($uri)
+                                    $request.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
+                                    $request.Credentials = New-Object System.Net.NetworkCredential($ftpUser, $ftpPass)
+                                    $request.UseBinary = $true
+                                    $request.UsePassive = $true
+                                    $content = [System.IO.File]::ReadAllBytes($file.FullName)
+                                    $request.ContentLength = $content.Length
+                                    $stream = $request.GetRequestStream()
+                                    $stream.Write($content, 0, $content.Length)
+                                    $stream.Close()
+                                } catch {
+                                    Write-Host "Warning: Failed to upload $($file.Name) - $_.Exception.Message"
+                                }
                             }
 
                             Write-Host "Deployment completed successfully!"
@@ -240,14 +251,14 @@ pipeline {
                                         echo "Installing backend dependencies..."
                                         npm install --production
                                         echo "Stopping existing Node.js processes..."
-                                        pkill -f "node.*dist/index.js" || echo "No existing process found"
-                                        pkill -f "node.*index.js" || echo "No existing process found"
+                                        pkill -f "tsx.*src/index.ts" || echo "No existing process found"
+                                        pkill -f "node.*src/index.ts" || echo "No existing process found"
                                         sleep 2
-                                        echo "Starting Node.js application..."
-                                        nohup node dist/index.js > app.log 2>&1 &
+                                        echo "Starting Node.js application with tsx..."
+                                        nohup npx tsx src/index.ts > app.log 2>&1 &
                                         echo "Application restarted!"
                                         sleep 1
-                                        ps aux | grep "node.*dist/index.js" | grep -v grep || echo "Process check"
+                                        ps aux | grep "tsx.*src/index.ts" | grep -v grep || echo "Process check"
 "@
 
                                     $output = & $plinkPath -ssh -pw $sshPass "$sshUser@$sshHost" $commands 2>&1
