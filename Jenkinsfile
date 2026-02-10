@@ -202,7 +202,7 @@ pipeline {
                                                 IsCritical = $isCritical
                                             }
                                             $prefix = if ($isCritical) { "CRITICAL" } else { "Warning" }
-                                            Write-Host "$prefix: Failed to upload $targetFile - $_.Exception.Message"
+                                            Write-Host "${prefix}: Failed to upload $targetFile - $_.Exception.Message"
                                         }
                                     }
                                 }
@@ -244,7 +244,7 @@ pipeline {
                                         IsCritical = $isCritical
                                     }
                                     $prefix = if ($isCritical) { "CRITICAL" } else { "Warning" }
-                                    Write-Host "$prefix: Failed to upload $($file.Name) - $_.Exception.Message"
+                                    Write-Host "${prefix}: Failed to upload $($file.Name) - $_.Exception.Message"
                                 }
                             }
 
