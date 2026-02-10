@@ -1,0 +1,167 @@
+// ============================================
+// PERSONAL FINANCE APP - PRISMA SCHEMA
+// Database: MySQL
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String   // Hashed with bcrypt
+  name         String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  // Relations
+  transactions   Transaction[]
+  budgets        Budget[]
+  pots           Pot[]
+  recurringBills RecurringBill[]
+  balance        Balance?
+
+  @@index([email])
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ============================================
+// BALANCE
+// ============================================
+
+model Balance {
+  id         String   @id @default(cuid())
+  user_id    String   @unique
+  current    Decimal  @db.Decimal(10, 2) @default(0)
+  income     Decimal  @db.Decimal(10, 2) @default(0)
+  expenses   Decimal  @db.Decimal(10, 2) @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("balances")
+}
+
+// ============================================
+// TRANSACTIONS
+// ============================================
+
+model Transaction {
+  id         String   @id @default(cuid())
+  user_id    String
+  avatar     String?
+  name       String
+  category   Category
+  date       DateTime
+  amount     Decimal  @db.Decimal(10, 2)
+  recurring  Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([date])
+  @@index([category])
+  @@index([name])
+  @@map("transactions")
+}
+
+enum Category {
+  Entertainment
+  Bills
+  Groceries
+  DiningOut
+  Transportation
+  PersonalCare
+  Education
+  Lifestyle
+  Shopping
+  General
+}
+
+// ============================================
+// BUDGETS
+// ============================================
+
+model Budget {
+  id         String   @id @default(cuid())
+  user_id    String
+  category   Category @unique
+  maximum    Decimal  @db.Decimal(10, 2)
+  theme      String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([category])
+  @@map("budgets")
+}
+
+// ============================================
+// POTS
+// ============================================
+
+model Pot {
+  id         String   @id @default(cuid())
+  user_id    String
+  name       String
+  target     Decimal  @db.Decimal(10, 2)
+  total      Decimal  @db.Decimal(10, 2)
+  theme      String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("pots")
+}
+
+// ============================================
+// RECURRING BILLS
+// ============================================
+
+model RecurringBill {
+  id          String   @id @default(cuid())
+  user_id     String
+  vendor_name String
+  amount      Decimal  @db.Decimal(10, 2)
+  due_day     Int // Day of month (1-31)
+  category    Category
+  theme       String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([vendor_name])
+  @@map("recurring_bills")
+}
