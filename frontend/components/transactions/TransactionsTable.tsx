@@ -49,7 +49,7 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
       {/* Table Rows */}
       <div className="divide-y divide-border">
         {transactions.map((transaction) => {
-          const amountDisplay = formatTransactionAmount(transaction.amount)
+          const amountClass = transaction.amount > 0 ? 'text-accent' : 'text-primary'
 
           return (
             <div
@@ -84,8 +84,8 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
 
               {/* Amount */}
               <div className="col-span-1 md:col-span-2 text-right">
-                <p className={cn('text-body font-semibold', amountDisplay.className)}>
-                  {amountDisplay.value}
+                <p className={cn('text-body font-semibold', amountClass)}>
+                  {formatTransactionAmount(transaction.amount)}
                 </p>
               </div>
             </div>

@@ -2,10 +2,10 @@
 // AVATAR COMPONENT
 // ============================================
 
-import { ImageHTMLAttributes, forwardRef } from 'react'
+import { ImgHTMLAttributes, forwardRef } from 'react'
 import { cn } from '@/lib/utils'
 
-export interface AvatarProps extends ImageHTMLAttributes<HTMLImageElement> {
+export interface AvatarProps extends ImgHTMLAttributes<HTMLImageElement> {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   initials?: string
   alt?: string

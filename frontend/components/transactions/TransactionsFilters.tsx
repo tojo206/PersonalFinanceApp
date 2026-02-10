@@ -5,7 +5,7 @@
 'use client'
 
 import { Input, Select } from '@/components/common'
-import { CATEGORIES, CATEGORY_LABELS, SORT_OPTIONS } from '@/lib/constants'
+import { CATEGORIES, SORT_OPTIONS } from '@/lib/constants'
 import type { Category, SortOption } from '@/types'
 
 interface TransactionsFiltersProps {
@@ -27,7 +27,7 @@ export function TransactionsFilters({
 }: TransactionsFiltersProps) {
   const categoryOptions = [
     { value: 'all', label: 'All Transactions' },
-    ...CATEGORIES.map((cat) => ({ value: cat, label: CATEGORY_LABELS[cat] })),
+    ...CATEGORIES.map((cat) => ({ value: cat.value, label: cat.label })),
   ]
 
   return (

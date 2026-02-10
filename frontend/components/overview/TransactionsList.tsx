@@ -6,7 +6,7 @@
 
 import Link from 'next/link'
 import { Card, Avatar } from '@/components/common'
-import { formatTransactionAmount, formatDate } from '@/lib/utils'
+import { formatTransactionAmount, formatDate, cn } from '@/lib/utils'
 
 interface Transaction {
   id: string
@@ -38,7 +38,7 @@ export function TransactionsList({ transactions }: TransactionsListProps) {
 
       <div className="space-y-3">
         {displayTransactions.map((transaction) => {
-          const amountDisplay = formatTransactionAmount(transaction.amount)
+          const amountClass = transaction.amount > 0 ? 'text-accent' : 'text-primary'
 
           return (
             <div
@@ -57,8 +57,8 @@ export function TransactionsList({ transactions }: TransactionsListProps) {
                   <p className="text-small text-secondary">{formatDate(transaction.date)}</p>
                 </div>
               </div>
-              <p className={cn('text-body font-semibold', amountDisplay.className)}>
-                {amountDisplay.value}
+              <p className={cn('text-body font-semibold', amountClass)}>
+                {formatTransactionAmount(transaction.amount)}
               </p>
             </div>
           )

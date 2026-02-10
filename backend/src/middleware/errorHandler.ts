@@ -3,7 +3,7 @@
 // ============================================
 
 import { Request, Response, NextFunction } from 'express'
-import type { ApiResponse } from '../../types'
+import type { ApiResponse } from '../../types/index.js'
 
 export const errorHandler = (
   err: Error,
@@ -52,7 +52,7 @@ export const errorHandler = (
       error: {
         code: 'VALIDATION_ERROR',
         message: 'Invalid input data',
-        details: err,
+        details: (err as any).issues || [],
       },
     })
   }

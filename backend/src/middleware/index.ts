@@ -2,6 +2,6 @@
 // MIDDLEWARE EXPORTS
 // ============================================
 
-export * from './errorHandler'
-export * from './authenticate'
-export * from './validate'
+export * from './errorHandler.js'
+export * from './authenticate.js'
+export * from './validate.js'

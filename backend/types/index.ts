@@ -69,6 +69,14 @@ export interface AuthResponse {
   }
 }
 
+export interface JWTPayload {
+  userId: string
+  email: string
+  type: 'access' | 'refresh'
+  iat?: number
+  exp?: number
+}
+
 // ============================================
 // BALANCE
 // ============================================

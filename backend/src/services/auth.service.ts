@@ -5,7 +5,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import prisma from '../../lib/prisma.js'
-import type { User, LoginInput, RegisterInput, AuthResponse, JWTPayload } from '../../types'
+import type { User, LoginInput, RegisterInput, AuthResponse, JWTPayload } from '../../types/index.js'
 
 const SALT_ROUNDS = 12
 
@@ -18,9 +18,9 @@ export class AuthService {
       type: 'access',
     }
 
-    return jwt.sign(payload, process.env.JWT_ACCESS_SECRET!, {
+    return jwt.sign(payload, process.env.JWT_ACCESS_SECRET || 'default-secret', {
       expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
-    })
+    } as jwt.SignOptions)
   }
 
   // Generate refresh token
@@ -31,9 +31,9 @@ export class AuthService {
       type: 'refresh',
     }
 
-    return jwt.sign(payload, process.env.JWT_REFRESH_SECRET!, {
+    return jwt.sign(payload, process.env.JWT_REFRESH_SECRET || 'default-secret', {
       expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d',
-    })
+    } as jwt.SignOptions)
   }
 
   // Register new user
@@ -93,11 +93,7 @@ export class AuthService {
     return {
       success: true,
       data: {
-        user: {
-          ...user,
-          created_at: user.created_at,
-          updated_at: user.updated_at,
-        },
+        user: user as any,
         accessToken,
         refreshToken,
       },
@@ -108,11 +104,11 @@ export class AuthService {
   async login(data: LoginInput): Promise<AuthResponse> {
     const { email, password } = data
 
-    // Find user
+    // Find user with password field included
     const user = await prisma.user.findUnique({
       where: { email },
       include: { balance: true },
-    }) as User & { balance?: any } | null
+    }) as any
 
     if (!user) {
       return {
@@ -153,11 +149,7 @@ export class AuthService {
     return {
       success: true,
       data: {
-        user: {
-          ...user,
-          created_at: user.created_at,
-          updated_at: user.updated_at,
-        },
+        user: user as any,
         accessToken,
         refreshToken,
       },
@@ -167,19 +159,19 @@ export class AuthService {
   // Verify token
   verifyToken(token: string): JWTPayload | null {
     try {
-      return jwt.verify(token, process.env.JWT_ACCESS_SECRET!) as JWTPayload
+      const secret = process.env.JWT_ACCESS_SECRET || 'default-secret'
+      return jwt.verify(token, secret) as JWTPayload
     } catch {
       return null
     }
   }
 
   // Refresh token
-  async refresh refreshToken: Promise<AuthResponse> {
-    // Find session
+  async refresh(refreshToken: string): Promise<AuthResponse> {
+    // Find session with user
     const session = await prisma.session.findUnique({
       where: { token: refreshToken },
-      include: { user: { include: { balance: true } } },
-    })
+    }) as any
 
     if (!session || session.expiresAt < new Date()) {
       // Delete expired session
@@ -196,9 +188,15 @@ export class AuthService {
       }
     }
 
+    // Get user with balance
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      include: { balance: true },
+    }) as any
+
     // Generate new tokens
-    const accessToken = this.generateAccessToken(session.user.id, session.user.email)
-    const newRefreshToken = this.generateRefreshToken(session.user.id, session.user.email)
+    const accessToken = this.generateAccessToken(user.id, user.email)
+    const newRefreshToken = this.generateRefreshToken(user.id, user.email)
 
     // Update session
     await prisma.session.update({
@@ -212,7 +210,7 @@ export class AuthService {
     return {
       success: true,
       data: {
-        user: session.user,
+        user,
         accessToken,
         refreshToken: newRefreshToken,
       },

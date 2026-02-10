@@ -5,8 +5,8 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../../../lib/prisma.js'
-import { AuthService } from '../../services/auth.service'
-import { authenticate } from '../../middleware'
+import { AuthService } from '../../services/auth.service.js'
+import { authenticate } from '../../middleware/index.js'
 
 const router = Router()
 const authService = new AuthService()

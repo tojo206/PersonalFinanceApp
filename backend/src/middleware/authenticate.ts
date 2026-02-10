@@ -4,7 +4,7 @@
 
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
-import type { JWTPayload } from '../../types'
+import type { JWTPayload } from '../../types/index.js'
 
 export interface AuthRequest extends Request {
   userId?: string
