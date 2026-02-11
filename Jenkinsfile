@@ -178,7 +178,7 @@ pipeline {
                                     $ftpPath = $targetPath + $relativePath
 
                                     # Create intermediate directories if needed (ensure forward slashes)
-                                    $ftpDirPath = (Split-Path $ftpPath -Parent) -replace "\\", "/"
+                                    $ftpDirPath = (Split-Path $ftpPath -Parent) -replace '\\\\', '/'
                                     if ($ftpDirPath -ne $targetPath -and $ftpDirPath -ne "") {
                                         $dirsToCreate = $ftpDirPath.Substring($targetPath.Length) -split "/"
                                         $currentPath = $targetPath
