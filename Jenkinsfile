@@ -173,13 +173,13 @@ pipeline {
                                 # Get all files recursively
                                 $files = Get-ChildItem $sourcePath -Recurse -File
                                 foreach ($file in $files) {
-                                    # Calculate relative path and convert to FTP path
-                                    $relativePath = $file.FullName.Substring((Get-Item $sourcePath).FullName.Length)
-                                    $ftpPath = $targetPath + ($relativePath -replace "\\\\", "/")
+                                    # Calculate relative path and convert to FTP path (forward slashes only)
+                                    $relativePath = $file.FullName.Substring((Get-Item $sourcePath).FullName.Length) -replace "\\\\", "/"
+                                    $ftpPath = $targetPath + $relativePath
 
-                                    # Create intermediate directories if needed
-                                    $ftpDirPath = Split-Path $ftpPath -Parent
-                                    if ($ftpDirPath -ne $targetPath) {
+                                    # Create intermediate directories if needed (ensure forward slashes)
+                                    $ftpDirPath = (Split-Path $ftpPath -Parent) -replace "\\", "/"
+                                    if ($ftpDirPath -ne $targetPath -and $ftpDirPath -ne "") {
                                         $dirsToCreate = $ftpDirPath.Substring($targetPath.Length) -split "/"
                                         $currentPath = $targetPath
                                         foreach ($dir in $dirsToCreate) {
