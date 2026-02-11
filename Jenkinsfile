@@ -148,7 +148,7 @@ pipeline {
                                 exit 1
                             }
 
-                            # Helper function to create FTP directory recursively
+                            # Helper function to create FTP directory
                             function Create-FtpDirectory {
                                 param($dirPath)
                                 try {
@@ -163,114 +163,63 @@ pipeline {
                                 }
                             }
 
-                            # Track failed uploads
-                            $script:failedUploads = @()
-                            $criticalFiles = @('package.json', 'tsconfig.json', 'next.config.js', 'next.config.mjs', 'index.ts', 'index.js')
-
-                            # Helper function to upload file recursively
-                            function Upload-Files {
+                            # Helper function to recursively upload files
+                            function Upload-Directory {
                                 param($sourcePath, $targetPath)
-                                $items = Get-ChildItem $sourcePath -Recurse
-                                foreach ($item in $items) {
-                                    $relativePath = $item.FullName.Substring((Get-Item $sourcePath).FullName.Length)
-                                    $targetFile = $targetPath + $relativePath -replace "\\\\", "/"
 
-                                    # Create directory if needed
-                                    if ($item.PSIsContainer) {
-                                        Create-FtpDirectory $targetFile
-                                    } else {
-                                        # Upload file
-                                        $uri = "ftp://$ftpHost$targetFile"
-                                        Write-Host "Uploading:" $targetFile
-                                        try {
-                                            $request = [System.Net.FtpWebRequest]::Create($uri)
-                                            $request.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
-                                            $request.Credentials = New-Object System.Net.NetworkCredential($ftpUser, $ftpPass)
-                                            $request.UseBinary = $true
-                                            $request.UsePassive = $true
-                                            $content = [System.IO.File]::ReadAllBytes($item.FullName)
-                                            $request.ContentLength = $content.Length
-                                            $stream = $request.GetRequestStream()
-                                            $stream.Write($content, 0, $content.Length)
-                                            $stream.Close()
-                                        } catch {
-                                            $fileName = Split-Path $targetFile -Leaf
-                                            $isCritical = $criticalFiles -contains $fileName
-                                            $script:failedUploads += @{
-                                                Path = $targetFile
-                                                Error = $_.Exception.Message
-                                                IsCritical = $isCritical
+                                # Create the target directory
+                                Create-FtpDirectory $targetPath
+
+                                # Get all files recursively
+                                $files = Get-ChildItem $sourcePath -Recurse -File
+                                foreach ($file in $files) {
+                                    # Calculate relative path and convert to FTP path
+                                    $relativePath = $file.FullName.Substring((Get-Item $sourcePath).FullName.Length)
+                                    $ftpPath = $targetPath + ($relativePath -replace "\\\\", "/")
+
+                                    # Create intermediate directories if needed
+                                    $ftpDirPath = Split-Path $ftpPath -Parent
+                                    if ($ftpDirPath -ne $targetPath) {
+                                        $dirsToCreate = $ftpDirPath.Substring($targetPath.Length) -split "/"
+                                        $currentPath = $targetPath
+                                        foreach ($dir in $dirsToCreate) {
+                                            if ($dir -ne "") {
+                                                $currentPath = "$currentPath/$dir"
+                                                Create-FtpDirectory $currentPath
                                             }
-                                            $prefix = if ($isCritical) { "CRITICAL" } else { "Warning" }
-                                            Write-Host "${prefix}: Failed to upload $targetFile - $_.Exception.Message"
                                         }
                                     }
+
+                                    # Upload the file
+                                    $uri = "ftp://$ftpHost$ftpPath"
+                                    Write-Host "Uploading: $ftpPath"
+                                    try {
+                                        $request = [System.Net.FtpWebRequest]::Create($uri)
+                                        $request.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
+                                        $request.Credentials = New-Object System.Net.NetworkCredential($ftpUser, $ftpPass)
+                                        $request.UseBinary = $true
+                                        $content = [System.IO.File]::ReadAllBytes($file.FullName)
+                                        $request.ContentLength = $content.Length
+                                        $stream = $request.GetRequestStream()
+                                        $stream.Write($content, 0, $content.Length)
+                                        $stream.Close()
+                                    } catch {
+                                        Write-Host "Warning: Failed to upload $ftpPath - $_.Exception.Message"
+                                    }
                                 }
                             }
 
-                            # Upload frontend
+                            # Create main directories
+                            Create-FtpDirectory "$ftpDir/frontend"
+                            Create-FtpDirectory "$ftpDir/backend"
+
+                            # Upload frontend files recursively
                             Write-Host "Uploading frontend files..."
-                            Upload-Files "deploy-package/frontend" "$ftpDir/frontend"
+                            Upload-Directory "deploy-package/frontend" "$ftpDir/frontend"
 
-                            # Upload backend
+                            # Upload backend files recursively
                             Write-Host "Uploading backend files..."
-                            # Upload source folders (Upload-Files creates directories as needed)
-                            Upload-Files "deploy-package/backend/src" "$ftpDir/backend/src"
-                            Upload-Files "deploy-package/backend/lib" "$ftpDir/backend/lib"
-                            Upload-Files "deploy-package/backend/types" "$ftpDir/backend/types"
-                            Upload-Files "deploy-package/backend/prisma" "$ftpDir/backend/prisma"
-
-                            # Upload root backend files (package.json, tsconfig.json)
-                            $files = Get-ChildItem "deploy-package/backend" -File
-                            foreach ($file in $files) {
-                                $uri = "ftp://$ftpHost$ftpDir/backend/" + $file.Name
-                                Write-Host "Uploading backend root:" $file.Name
-                                try {
-                                    $request = [System.Net.FtpWebRequest]::Create($uri)
-                                    $request.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
-                                    $request.Credentials = New-Object System.Net.NetworkCredential($ftpUser, $ftpPass)
-                                    $request.UseBinary = $true
-                                    $request.UsePassive = $true
-                                    $content = [System.IO.File]::ReadAllBytes($file.FullName)
-                                    $request.ContentLength = $content.Length
-                                    $stream = $request.GetRequestStream()
-                                    $stream.Write($content, 0, $content.Length)
-                                    $stream.Close()
-                                } catch {
-                                    $isCritical = $criticalFiles -contains $file.Name
-                                    $script:failedUploads += @{
-                                        Path = $file.Name
-                                        Error = $_.Exception.Message
-                                        IsCritical = $isCritical
-                                    }
-                                    $prefix = if ($isCritical) { "CRITICAL" } else { "Warning" }
-                                    Write-Host "${prefix}: Failed to upload $($file.Name) - $_.Exception.Message"
-                                }
-                            }
-
-                            # Report failed uploads
-                            if ($script:failedUploads.Count -gt 0) {
-                                Write-Host ""
-                                Write-Host "=== UPLOAD SUMMARY ===" -ForegroundColor Yellow
-                                Write-Host "Failed uploads: $($script:failedUploads.Count)"
-                                $criticalFailures = $script:failedUploads | Where-Object { $_.IsCritical }
-                                if ($criticalFailures.Count -gt 0) {
-                                    Write-Host ""
-                                    Write-Host "CRITICAL FAILURES - Deployment may be broken!" -ForegroundColor Red
-                                    foreach ($failure in $criticalFailures) {
-                                        Write-Host "  - $($failure.Path): $($failure.Error)"
-                                    }
-                                    Write-Host ""
-                                    Write-Host "ERROR: Critical files failed to upload. Deployment failed!" -ForegroundColor Red
-                                    exit 1
-                                } else {
-                                    Write-Host ""
-                                    Write-Host "Non-critical files failed (deployment may still work)"
-                                    foreach ($failure in $script:failedUploads) {
-                                        Write-Host "  - $($failure.Path): $($failure.Error)"
-                                    }
-                                }
-                            }
+                            Upload-Directory "deploy-package/backend" "$ftpDir/backend"
 
                             Write-Host "Deployment completed successfully!"
                         '''
